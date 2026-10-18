@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../models/category_model.dart';
 import '../../models/expense_model.dart';
+import '../../features/receipt/receipt_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -21,8 +22,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -51,7 +53,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Seeding Data Kategori Bawaan
+    await _createReceiptTable(db);
     await db.insert('categories', {'name': 'Makanan & Minuman', 'icon_name': 'restaurant', 'color_hex': '#FF5722'});
     await db.insert('categories', {'name': 'Transportasi', 'icon_name': 'directions_car', 'color_hex': '#2196F3'});
     await db.insert('categories', {'name': 'Belanja', 'icon_name': 'shopping_bag', 'color_hex': '#4CAF50'});
@@ -123,5 +125,45 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // ==========================================
+  // DAO KHUSUS MODUL 2 (LYVIA)
+  // ==========================================
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createReceiptTable(db);
+    }
+  }
+
+  Future<void> _createReceiptTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE receipt_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expense_id INTEGER NOT NULL,
+        file_path TEXT NOT NULL,
+        note TEXT,
+        captured_at TEXT NOT NULL,
+        extracted_amount REAL,
+        FOREIGN KEY (expense_id) REFERENCES expenses (id) ON DELETE CASCADE
+      )
+    ''');
+  }
+
+  Future<int> insertReceipt(Receipt receipt) async {
+    final db = await instance.database;
+    return await db.insert('receipt_images', receipt.toJson());
+  }
+
+  Future<List<Receipt>> getReceiptsByExpense(int expenseId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'receipt_images',
+      where: 'expense_id = ?',
+      whereArgs: [expenseId],
+      orderBy: 'captured_at DESC',
+    );
+    return result.map((json) => Receipt.fromJson(json)).toList();
   }
 }

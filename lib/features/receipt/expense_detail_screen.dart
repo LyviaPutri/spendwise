@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'expense_model.dart';
 import 'receipt_model.dart';
 import 'receipt_review_screen.dart';
+import '../../core/database/database_helper.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
   final Expense expense; // DATA MASUK: transaksi yang dilihat
@@ -20,6 +21,24 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   // STATE: daftar lampiran struk milik transaksi ini
   final List<Receipt> _receipts = [];
   final ImagePicker _picker = ImagePicker();
+
+    @override
+  void initState() {
+    super.initState();
+    _loadReceipts();
+  }
+
+  // Baca semua struk milik transaksi ini dari database
+  Future<void> _loadReceipts() async {
+    final data =
+        await DatabaseHelper.instance.getReceiptsByExpense(widget.expense.id);
+    if (!mounted) return;
+    setState(() {
+      _receipts
+        ..clear()
+        ..addAll(data);
+    });
+  }
 
   void _showMessage(String text, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -103,7 +122,11 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     if (!mounted) return;
     // RESULT: tambahkan semua Receipt yang dikembalikan ke state
     if (result != null && result.isNotEmpty) {
-      setState(() => _receipts.addAll(result));
+      for (final r in result) {
+        await DatabaseHelper.instance.insertReceipt(r);
+      }
+      await _loadReceipts(); // baca ulang dari database
+      if (!mounted) return;
       _showMessage('${result.length} struk berhasil dilampirkan!');
     }
   }
