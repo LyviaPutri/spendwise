@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'expense_model.dart';
-import 'receipt_model.dart';
+import '../dummy_expense.dart';
+import '../../../models/receipt_model.dart';
 import 'receipt_review_screen.dart';
-import '../../core/database/database_helper.dart';
+import 'receipt_gallery_screen.dart';
+import '../../../core/database/database_helper.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
   final Expense expense; // DATA MASUK: transaksi yang dilihat
@@ -151,7 +152,21 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   Widget build(BuildContext context) {
     final e = widget.expense;
     return Scaffold(
-      appBar: AppBar(title: const Text('Detail Transaksi')),
+      appBar: AppBar(
+  title: const Text('Detail Transaksi'),
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.photo_library),
+      tooltip: 'Galeri Struk',
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ReceiptGalleryScreen()),
+        );
+      },
+    ),
+  ],
+),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

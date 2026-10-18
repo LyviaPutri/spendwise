@@ -1,6 +1,6 @@
 class Receipt {
   final int? id;               // null saat belum disimpan, diisi otomatis oleh database
-  final int expenseId;         // = expense_id
+  final int? expenseId;        // = expense_id, boleh null (struk belum ditautkan)        // = expense_id
   final String imagePath;      // = file_path
   final String note;
   final DateTime createdAt;    // = captured_at
@@ -19,7 +19,7 @@ class Receipt {
   factory Receipt.fromJson(Map<String, dynamic> json) {
     return Receipt(
       id: json['id'] as int?,
-      expenseId: json['expense_id'] as int,
+      expenseId: json['expense_id'] as int?,
       imagePath: json['file_path'] as String,
       note: (json['note'] as String?) ?? '',
       createdAt: DateTime.parse(json['captured_at'] as String),

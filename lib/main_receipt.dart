@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'features/receipt/expense_model.dart';
-import 'features/receipt/expense_detail_screen.dart';
+import 'modules/receipt/dummy_expense.dart';
+import 'modules/receipt/screens/expense_detail_screen.dart';
 
 void main() {
   runApp(const MaterialApp(

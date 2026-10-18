@@ -2,7 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../models/category_model.dart';
 import '../../models/expense_model.dart';
-import '../../features/receipt/receipt_model.dart';
+import '../../models/receipt_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -22,9 +22,8 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 1,
       onCreate: _createDB,
-      onUpgrade: _upgradeDB,
     );
   }
 
@@ -39,7 +38,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. TABEL PENGELUARAN (Modul 1)
+    // 2. TABEL PENGELUARAN (Modul 1 - Febi)
     await db.execute('''
       CREATE TABLE expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +52,34 @@ class DatabaseHelper {
       )
     ''');
 
-    await _createReceiptTable(db);
+    // 3. TABEL BUKTI STRUK (Modul 2 - Lyvia)
+    // expense_id boleh NULL (struk belum ditautkan ke transaksi)
+    // note = tambahan Lyvia (catatan per foto), di luar skema guide
+    await db.execute('''
+      CREATE TABLE receipt_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expense_id INTEGER,
+        file_path TEXT NOT NULL,
+        note TEXT,
+        captured_at TEXT NOT NULL,
+        extracted_amount REAL,
+        FOREIGN KEY (expense_id) REFERENCES expenses (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // 4. TABEL PAGU ANGGARAN (Modul 3 - Nasywa)
+    await db.execute('''
+      CREATE TABLE budget_limits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL,
+        monthly_limit REAL NOT NULL,
+        period_month_year TEXT NOT NULL,
+        alert_80_sent INTEGER DEFAULT 0,
+        FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // SEEDING DATA KATEGORI
     await db.insert('categories', {'name': 'Makanan & Minuman', 'icon_name': 'restaurant', 'color_hex': '#FF5722'});
     await db.insert('categories', {'name': 'Transportasi', 'icon_name': 'directions_car', 'color_hex': '#2196F3'});
     await db.insert('categories', {'name': 'Belanja', 'icon_name': 'shopping_bag', 'color_hex': '#4CAF50'});
@@ -63,7 +89,6 @@ class DatabaseHelper {
   // ==========================================
   // DAO KHUSUS MODUL 1 (FEBIOLA)
   // ==========================================
-
   Future<List<CategoryModel>> getCategories() async {
     final db = await instance.database;
     final result = await db.query('categories');
@@ -77,34 +102,27 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getExpenses({String? searchQuery, int? categoryId, String? monthYear}) async {
     final db = await instance.database;
-    
     String query = '''
       SELECT e.*, c.name as category_name, c.icon_name, c.color_hex 
       FROM expenses e 
       JOIN categories c ON e.category_id = c.id
       WHERE 1=1
     ''';
-    
     List<dynamic> args = [];
 
     if (searchQuery != null && searchQuery.isNotEmpty) {
       query += ' AND (e.merchant_name LIKE ? OR e.notes LIKE ?)';
-      args.add('%$searchQuery%');
-      args.add('%$searchQuery%');
+      args.addAll(['%$searchQuery%', '%$searchQuery%']);
     }
-
     if (categoryId != null) {
       query += ' AND e.category_id = ?';
       args.add(categoryId);
     }
-
     if (monthYear != null && monthYear.isNotEmpty) {
       query += ' AND e.expense_date LIKE ?';
       args.add('$monthYear%');
     }
-
     query += ' ORDER BY e.expense_date DESC';
-
     return await db.rawQuery(query, args);
   }
 
@@ -130,27 +148,6 @@ class DatabaseHelper {
   // ==========================================
   // DAO KHUSUS MODUL 2 (LYVIA)
   // ==========================================
-
-  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      await _createReceiptTable(db);
-    }
-  }
-
-  Future<void> _createReceiptTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE receipt_images (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        expense_id INTEGER NOT NULL,
-        file_path TEXT NOT NULL,
-        note TEXT,
-        captured_at TEXT NOT NULL,
-        extracted_amount REAL,
-        FOREIGN KEY (expense_id) REFERENCES expenses (id) ON DELETE CASCADE
-      )
-    ''');
-  }
-
   Future<int> insertReceipt(Receipt receipt) async {
     final db = await instance.database;
     return await db.insert('receipt_images', receipt.toJson());
@@ -162,6 +159,15 @@ class DatabaseHelper {
       'receipt_images',
       where: 'expense_id = ?',
       whereArgs: [expenseId],
+      orderBy: 'captured_at DESC',
+    );
+    return result.map((json) => Receipt.fromJson(json)).toList();
+  }
+
+  Future<List<Receipt>> getAllReceipts() async {
+    final db = await instance.database;
+    final result = await db.query(
+      'receipt_images',
       orderBy: 'captured_at DESC',
     );
     return result.map((json) => Receipt.fromJson(json)).toList();

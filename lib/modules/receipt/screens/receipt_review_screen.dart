@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'expense_model.dart';
-import 'receipt_model.dart';
+import '../dummy_expense.dart';
+import '../../../models/receipt_model.dart';
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<String> imagePaths; // DATA MASUK 1: daftar path foto
