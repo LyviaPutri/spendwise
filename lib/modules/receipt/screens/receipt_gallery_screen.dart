@@ -40,6 +40,43 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
     );
   }
 
+  Future<void> _confirmDelete(Receipt r) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus struk?'),
+        content: const Text('Foto dan catatan struk ini akan dihapus permanen.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return; // dibatalkan, tidak ada yang dihapus
+
+    // 1. hapus file foto fisik
+    try {
+      final file = File(r.imagePath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+
+    // 2. hapus baris di database
+    await DatabaseHelper.instance.deleteReceipt(r.id!);
+
+    if (!mounted) return;
+    await _loadReceipts();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Struk dihapus')),
+    );
+  }
+
   void _openPreview(Receipt r) {
     showDialog(
       context: context,
@@ -61,6 +98,19 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
               Text(
                 'Dilampirkan ${r.createdAt.day}/${r.createdAt.month}/${r.createdAt.year}',
                 style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context); // tutup pratinjau
+                    _confirmDelete(r);
+                  },
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  label: const Text('Hapus',
+                      style: TextStyle(color: Colors.red)),
+                ),
               ),
             ],
           ),

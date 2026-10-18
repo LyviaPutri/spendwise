@@ -172,4 +172,13 @@ class DatabaseHelper {
     );
     return result.map((json) => Receipt.fromJson(json)).toList();
   }
+
+    Future<int> deleteReceipt(int id) async {
+    final db = await instance.database;
+    return await db.delete(
+      'receipt_images',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

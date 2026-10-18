@@ -158,11 +158,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     IconButton(
       icon: const Icon(Icons.photo_library),
       tooltip: 'Galeri Struk',
-      onPressed: () {
-        Navigator.push(
+      
+      onPressed: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ReceiptGalleryScreen()),
         );
+        if (!mounted) return;
+        _loadReceipts(); // baca ulang, siapa tahu ada yang dihapus di galeri
       },
     ),
   ],
