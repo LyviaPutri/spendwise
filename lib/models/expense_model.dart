@@ -4,6 +4,7 @@ class ExpenseModel {
   final double amount;
   final String expenseDate;
   final String merchantName;
+  final String? paymentMethod;
   final String? notes;
   final String source;
 
@@ -17,6 +18,7 @@ class ExpenseModel {
     required this.amount,
     required this.expenseDate,
     required this.merchantName,
+    this.paymentMethod,
     this.notes,
     this.source = 'manual',
     this.categoryName,
@@ -30,6 +32,7 @@ class ExpenseModel {
         amount: (json['amount'] as num).toDouble(),
         expenseDate: json['expense_date'] as String,
         merchantName: json['merchant_name'] as String,
+        paymentMethod: json['payment_method'] as String?,
         notes: json['notes'] as String?,
         source: json['source'] as String,
         categoryName: json['category_name'] as String?,
@@ -44,6 +47,7 @@ class ExpenseModel {
       'amount': amount,
       'expense_date': expenseDate,
       'merchant_name': merchantName,
+      'payment_method': paymentMethod,
       'notes': notes,
       'source': source,
     };

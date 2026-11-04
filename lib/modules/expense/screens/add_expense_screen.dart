@@ -1,16 +1,32 @@
+import 'package:spendwise/services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/database/database_helper.dart';
+import '../../../models/category_model.dart';
+import '../../../models/expense_model.dart';
+
 class AddExpenseScreen extends StatefulWidget {
+  final int? expenseId; // Kunci penanda Mode Edit
   final double? initialAmount;
   final String? initialMerchant;
+  final String? initialNotes;
+  final String? initialPaymentMethod;
+  final int? initialCategoryId;
+  final DateTime? initialDate;
   final String? receiptImagePath;
   final String initialSource;
 
   const AddExpenseScreen({
     super.key,
+    this.expenseId,
     this.initialAmount,
     this.initialMerchant,
+    this.initialNotes,
+    this.initialPaymentMethod,
+    this.initialCategoryId,
+    this.initialDate,
     this.receiptImagePath,
     this.initialSource = 'manual',
   });
@@ -21,19 +37,16 @@ class AddExpenseScreen extends StatefulWidget {
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   late TextEditingController _amountController;
-  late TextEditingController _merchantController;
   late TextEditingController _notesController;
   
   DateTime _selectedDate = DateTime.now();
   int _selectedCategoryId = 1; 
 
-  final List<Map<String, dynamic>> _categories = [
-    {'id': 1, 'name': 'Makanan', 'icon': Icons.restaurant, 'color': const Color(0xFFF59E0B)},
-    {'id': 2, 'name': 'Transport', 'icon': Icons.directions_car, 'color': const Color(0xFF2196F3)},
-    {'id': 3, 'name': 'Belanja', 'icon': Icons.shopping_bag, 'color': const Color(0xFF4CAF50)},
-    {'id': 4, 'name': 'Hiburan', 'icon': Icons.confirmation_number, 'color': const Color(0xFF9C27B0)},
-    {'id': 5, 'name': 'Lainnya', 'icon': Icons.grid_view_rounded, 'color': const Color(0xFF64748B)},
-  ];
+  String _selectedPaymentMethod = 'Tunai';
+  final List<String> _paymentMethods = ['Tunai', 'Non-Tunai']; 
+
+  List<CategoryModel> _dbCategories = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -43,16 +56,114 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ? widget.initialAmount!.toInt().toString()
           : '',
     );
-    _merchantController = TextEditingController(
-      text: widget.initialMerchant ?? '',
+    
+    _notesController = TextEditingController(
+      text: widget.initialNotes ?? widget.initialMerchant ?? '',
     );
-    _notesController = TextEditingController();
+
+    // Ambil data lama jika masuk dari Mode Edit
+    if (widget.initialDate != null) _selectedDate = widget.initialDate!;
+    if (widget.initialPaymentMethod != null) _selectedPaymentMethod = widget.initialPaymentMethod!;
+    if (widget.initialCategoryId != null) _selectedCategoryId = widget.initialCategoryId!;
+    
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await DatabaseHelper.instance.getCategories();
+    setState(() {
+      _dbCategories = categories;
+      if (_dbCategories.isNotEmpty) {
+        // Jangan timpa kategori jika sedang dalam Mode Edit
+        if (widget.initialCategoryId == null) {
+          _selectedCategoryId = _dbCategories.first.id!;
+        }
+      }
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveExpense() async {
+    if (_amountController.text.isEmpty || _amountController.text == '0') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal pengeluaran harus diisi!')),
+      );
+      return;
+    }
+
+    String rawAmount = _amountController.text.replaceAll('.', '');
+
+    // JIKA MODE EDIT
+    if (widget.expenseId != null) {
+      await DatabaseHelper.instance.updateExpenseRaw(
+        widget.expenseId!,
+        {
+          'category_id': _selectedCategoryId,
+          'amount': double.tryParse(rawAmount) ?? 0.0,
+          'expense_date': _selectedDate.toIso8601String(),
+          'merchant_name': "", 
+          'payment_method': _selectedPaymentMethod,
+          'notes': _notesController.text.isEmpty ? null : _notesController.text,
+          'source': widget.initialSource,
+        }
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Yeay! Perubahan berhasil disimpan 🎉')),
+        );
+      }
+    } 
+    // JIKA MODE TAMBAH BARU
+    else {
+      final expense = ExpenseModel(
+        categoryId: _selectedCategoryId,
+        amount: double.tryParse(rawAmount) ?? 0.0,
+        expenseDate: _selectedDate.toIso8601String(), // Pastikan ini tetap toIso8601String() di sini
+        merchantName: "", 
+        paymentMethod: _selectedPaymentMethod,
+        notes: _notesController.text.isEmpty ? null : _notesController.text,
+        source: widget.initialSource,
+      );
+      
+      // 1. Simpan ke SQLite lokal terlebih dahulu
+      final insertedId = await DatabaseHelper.instance.insertExpense(expense);
+      
+      // 2. Jika sukses tersimpan di HP, kirim salinan datanya ke Server MySQL XAMPP
+      if (insertedId > 0) {
+        ApiService.syncExpenseToServer(expense);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Yeay! Pengeluaran berhasil dicatat 🎉')),
+        );
+      }
+    }
+
+    if (mounted) Navigator.pop(context);
+  }
+
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'restaurant': return Icons.restaurant;
+      case 'directions_car': return Icons.directions_car;
+      case 'shopping_bag': return Icons.shopping_bag;
+      case 'confirmation_number': return Icons.confirmation_number;
+      default: return Icons.grid_view_rounded;
+    }
+  }
+
+  Color _getColor(String hexColor) {
+    hexColor = hexColor.replaceAll('#', '');
+    if (hexColor.length == 6) {
+      hexColor = 'FF$hexColor';
+    }
+    return Color(int.parse(hexColor, radix: 16));
   }
 
   @override
   void dispose() {
     _amountController.dispose();
-    _merchantController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -85,6 +196,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Penyesuaian Teks Dinamis
+    final isEditMode = widget.expenseId != null;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -94,9 +208,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: const Text(
-          'Tambah Pengeluaran',
-          style: TextStyle(
+        title: Text(
+          isEditMode ? 'Edit Pengeluaran' : 'Tambah Pengeluaran',
+          style: const TextStyle(
             color: Color(0xFF0F172A),
             fontFamily: 'Inter',
             fontWeight: FontWeight.w600,
@@ -138,7 +252,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               ),
               const SizedBox(height: 16),
             ],
-
             const Text(
               'NOMINAL',
               style: TextStyle(
@@ -171,7 +284,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   Expanded(
                     child: TextField(
                       controller: _amountController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: TextInputType.number, 
+                      inputFormatters: [RupiahInputFormatter()],
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w700,
@@ -204,16 +318,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             const SizedBox(height: 12),
             SizedBox(
               height: 84,
-              child: ListView.builder(
+              child: _isLoading 
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: _categories.length,
+                itemCount: _dbCategories.length,
                 itemBuilder: (context, index) {
-                  final cat = _categories[index];
-                  final isSelected = _selectedCategoryId == cat['id'];
+                  final cat = _dbCategories[index];
+                  final isSelected = _selectedCategoryId == cat.id;
+                  
+                  final catColor = _getColor(cat.colorHex);
+                  final catIcon = _getIconData(cat.iconName);
+
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedCategoryId = cat['id'] as int;
+                        _selectedCategoryId = cat.id!;
                       });
                     },
                     child: Padding(
@@ -225,25 +345,25 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             height: 52,
                             decoration: BoxDecoration(
                               color: isSelected 
-                                  ? (cat['color'] as Color).withValues(alpha: 0.12)
+                                  ? catColor.withValues(alpha: 0.12)
                                   : const Color(0xFFF8FAFC),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: isSelected 
-                                    ? cat['color'] as Color 
+                                    ? catColor 
                                     : const Color(0xFFE2E8F0),
                                 width: isSelected ? 2.5 : 1.5,
                               ),
                             ),
                             child: Icon(
-                              cat['icon'] as IconData,
-                              color: isSelected ? cat['color'] as Color : const Color(0xFF64748B),
+                              catIcon,
+                              color: isSelected ? catColor : const Color(0xFF64748B),
                               size: 20,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            cat['name'] as String,
+                            cat.name,
                             style: TextStyle(
                               fontFamily: 'Inter',
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -258,36 +378,46 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             const Text(
-              'Nama Toko / Merchant',
+              'METODE PEMBAYARAN',
               style: TextStyle(
-                color: Color(0xFF0F172A),
+                color: Color(0xFF64748B),
                 fontFamily: 'Inter',
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                letterSpacing: 0.8,
               ),
             ),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: _merchantController,
-              style: const TextStyle(fontSize: 14, fontFamily: 'Inter', color: Color(0xFF0F172A)),
-              decoration: InputDecoration(
-                hintText: 'cth. Kopi Kenangan',
-                hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                ),
-              ),
+            Wrap(
+              spacing: 8.0,
+              children: _paymentMethods.map((method) {
+                final isSelected = _selectedPaymentMethod == method;
+                return ChoiceChip(
+                  label: Text(
+                    method,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected ? Colors.white : const Color(0xFF64748B),
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: const Color(0xFF2563EB),
+                  backgroundColor: const Color(0xFFF8FAFC),
+                  side: BorderSide(
+                    color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                  ),
+                  onSelected: (bool selected) {
+                    setState(() {
+                      _selectedPaymentMethod = method;
+                    });
+                  },
+                );
+              }).toList(),
             ),
             const SizedBox(height: 16),
 
@@ -329,7 +459,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             const SizedBox(height: 16),
 
             const Text(
-              'Catatan (opsional)',
+              'Keterangan (opsional)', 
               style: TextStyle(
                 color: Color(0xFF0F172A),
                 fontFamily: 'Inter',
@@ -339,11 +469,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ),
             const SizedBox(height: 8),
             TextFormField(
+              maxLength: 50,
               controller: _notesController,
-              maxLines: 3,
+              maxLines: 2, 
               style: const TextStyle(fontSize: 14, fontFamily: 'Inter', color: Color(0xFF0F172A)),
               decoration: InputDecoration(
-                hintText: 'Tambah catatan...',
+                hintText: 'cth: Kopi Kenangan, atau bayar parkir...', 
                 hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
                 filled: true,
                 fillColor: Colors.white,
@@ -364,11 +495,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Menyimpan transaksi harian...')),
-                  );
-                },
+                onPressed: _saveExpense,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB), 
                   shape: RoundedRectangleBorder(
@@ -376,9 +503,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  'Simpan Pengeluaran',
-                  style: TextStyle(
+                child: Text(
+                  isEditMode ? 'Simpan Perubahan' : 'Simpan Pengeluaran',
+                  style: const TextStyle(
                     fontFamily: 'Inter',
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -387,36 +514,61 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  // Hubungkan ke Modul 2 milik Lyvia (ReceiptCameraScreen)
-                },
-                icon: const Icon(Icons.camera_alt_outlined, color: Color(0xFF2563EB), size: 18),
-                label: const Text(
-                  'Scan Struk',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Color(0xFF2563EB),
+            
+            // Tombol Scan Struk kita sembunyikan saat Edit Mode, karena tidak masuk akal edit pakai scan
+            if (!isEditMode) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.camera_alt_outlined, color: Color(0xFF2563EB), size: 18),
+                  label: const Text(
+                    'Scan Struk',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF2563EB),
+                    ),
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class RupiahInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+
+    String cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanText.isEmpty) return newValue.copyWith(text: '');
+    
+    int? parsed = int.tryParse(cleanText);
+    if (parsed == null) return oldValue;
+    
+    String result = parsed.toString().replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]}.'
+    );
+
+    return newValue.copyWith(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
     );
   }
 }
