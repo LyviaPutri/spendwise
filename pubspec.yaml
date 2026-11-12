@@ -13,8 +13,8 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.9.0
   # Notifikasi Lokal Mandiri
-  flutter_local_notifications: ^17.0.0
-  timezone: ^0.9.2
+  flutter_local_notifications: ^22.3.3
+  timezone: ^0.11.2
   # Modul 2 (Kamera & OCR)
   image_picker: ^1.0.7
   google_mlkit_text_recognition: ^0.17.1

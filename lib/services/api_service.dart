@@ -4,7 +4,7 @@ import '../models/expense_model.dart';
 
 class ApiService {
   // Menggunakan IP Wi-Fi laptopmu agar HP bisa terhubung
-  static const String baseUrl = 'http://10.44.61.145/spendwise';
+  static const String baseUrl = 'http://10.28.21.1/spendwise';
 
   static Future<bool> syncExpenseToServer(ExpenseModel expense) async {
     try {
@@ -20,7 +20,7 @@ class ApiService {
           'notes': expense.notes ?? '',
           'source': expense.source,
         }),
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);

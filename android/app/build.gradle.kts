@@ -51,5 +51,5 @@ flutter {
 
 // Blok ini kita tambahkan sendiri secara manual di paling bawah
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

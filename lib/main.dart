@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
-import 'modules/expense/screens/expense_list_screen.dart'; 
+import 'modules/expense/screens/main_navigation.dart'; // Merujuk ke navigasi utama
+import 'services/notification_handler.dart';
+import 'services/local_notification_service.dart'; 
 
 void main() async {
-  // Wajib dipanggil jika ada eksekusi asynchronous sebelum runApp()
+  // Wajib dipanggil sebelum runApp()
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. Alarm harian dinonaktifkan sementara agar build aman untuk tim
+  // await LocalNotificationService.initialize();
+  // await LocalNotificationService.scheduleDailyNotification();
+
+  // 2. Aktifkan pendengar notifikasi GoPay 
+  NotificationHandler.startListening();
+
   runApp(const SpendWiseApp());
 }
 
@@ -19,8 +29,8 @@ class SpendWiseApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
         useMaterial3: true,
       ),
-      // Layar awal harus merujuk ke ExpenseListScreen
-      home: const ExpenseListScreen(), 
+      // Layar awal disetel ke Navigasi Bawah
+      home: const MainNavigation(), 
     );
   }
 }
