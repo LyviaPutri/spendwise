@@ -181,4 +181,26 @@ class DatabaseHelper {
       whereArgs: [id],
     );
   }
+
+    // Ganti path foto pada satu baris struk (dipakai fitur Ganti Foto, FR-12)
+    Future<int> updateReceiptPath(int id, String newPath) async {
+    final db = await instance.database;
+    return await db.update(
+      'receipt_images',
+      {'file_path': newPath},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+      // Ubah path foto DAN catatan satu struk (dipakai layar Edit, FR-12)
+    Future<int> updateReceipt(int id, String filePath, String note) async {
+    final db = await instance.database;
+    return await db.update(
+      'receipt_images',
+      {'file_path': filePath, 'note': note},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

@@ -5,7 +5,10 @@ import '../dummy_expense.dart';
 import '../../../models/receipt_model.dart';
 import 'receipt_review_screen.dart';
 import 'receipt_gallery_screen.dart';
+import 'receipt_edit_screen.dart';
 import '../../../core/database/database_helper.dart';
+import '../services/receipt_file_service.dart';
+import '../services/receipt_validator.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
   final Expense expense; // DATA MASUK: transaksi yang dilihat
@@ -17,13 +20,12 @@ class ExpenseDetailScreen extends StatefulWidget {
 
 class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   static const int _maxReceipts = 3;
-  static const int _maxSizeBytes = 5 * 1024 * 1024; // 5 MB
 
   // STATE: daftar lampiran struk milik transaksi ini
   final List<Receipt> _receipts = [];
   final ImagePicker _picker = ImagePicker();
 
-    @override
+  @override
   void initState() {
     super.initState();
     _loadReceipts();
@@ -85,27 +87,16 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       _showMessage('Hanya $remaining foto yang diambil (sisa kuota)');
     }
 
-    // VALIDASI 4 + 5: format JPG/PNG dan ukuran maksimal 5 MB
-    final List<String> validPaths = [];
-    int rejected = 0;
-    for (final file in picked) {
-      final path = file.path.toLowerCase();
-      final validFormat = path.endsWith('.jpg') ||
-          path.endsWith('.jpeg') ||
-          path.endsWith('.png');
-      final size = await File(file.path).length();
-      if (validFormat && size <= _maxSizeBytes) {
-        validPaths.add(file.path);
-      } else {
-        rejected++;
-      }
-    }
+    // VALIDASI 4 + 5: format JPG/PNG dan ukuran maks 5 MB (diurus ReceiptValidator)
+    final validation = await ReceiptValidator.filterValid(picked);
     if (!mounted) return;
 
-    if (rejected > 0) {
-      _showMessage('$rejected foto ditolak (harus JPG/PNG, maks 5 MB)',
+    if (validation.rejected > 0) {
+      _showMessage(
+          '${validation.rejected} foto ditolak (harus JPG/PNG, maks 5 MB)',
           isError: true);
     }
+    final validPaths = validation.validPaths;
     if (validPaths.isEmpty) return; // semua ditolak, tetap di Detail
 
     // NAVIGATION: kirim daftar imagePath + expense ke Review Screen,
@@ -121,14 +112,37 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     );
 
     if (!mounted) return;
-    // RESULT: tambahkan semua Receipt yang dikembalikan ke state
+    // RESULT: simpan semua Receipt yang dikembalikan
     if (result != null && result.isNotEmpty) {
       for (final r in result) {
-        await DatabaseHelper.instance.insertReceipt(r);
+        // Salin foto ke folder aplikasi, lalu simpan path BARU ke database
+        final savedPath = await ReceiptFileService.copyToAppDir(r.imagePath);
+        final receiptToSave = Receipt(
+          expenseId: r.expenseId,
+          imagePath: savedPath,
+          note: r.note,
+          createdAt: r.createdAt,
+          extractedAmount: r.extractedAmount,
+        );
+        await DatabaseHelper.instance.insertReceipt(receiptToSave);
       }
       await _loadReceipts(); // baca ulang dari database
       if (!mounted) return;
       _showMessage('${result.length} struk berhasil dilampirkan!');
+    }
+  }
+
+  // EVENT: tombol Edit pada kartu struk, buka layar Edit
+  Future<void> _editReceipt(Receipt r) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ReceiptEditScreen(receipt: r)),
+    );
+    if (!mounted) return;
+    if (saved == true) {
+      await _loadReceipts(); // baca ulang dari database
+      if (!mounted) return;
+      _showMessage('Struk berhasil diperbarui');
     }
   }
 
@@ -153,23 +167,23 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final e = widget.expense;
     return Scaffold(
       appBar: AppBar(
-  title: const Text('Detail Transaksi'),
-  actions: [
-    IconButton(
-      icon: const Icon(Icons.photo_library),
-      tooltip: 'Galeri Struk',
-      
-      onPressed: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ReceiptGalleryScreen()),
-        );
-        if (!mounted) return;
-        _loadReceipts(); // baca ulang, siapa tahu ada yang dihapus di galeri
-      },
-    ),
-  ],
-),
+        title: const Text('Detail Transaksi'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.photo_library),
+            tooltip: 'Galeri Struk',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ReceiptGalleryScreen()),
+              );
+              if (!mounted) return;
+              _loadReceipts(); // baca ulang, siapa tahu ada yang diubah/dihapus di galeri
+            },
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -221,6 +235,11 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     title: Text(r.note.isEmpty ? 'Tanpa catatan' : r.note),
                     subtitle: Text(
                         'Dilampirkan ${r.createdAt.day}/${r.createdAt.month}/${r.createdAt.year}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      tooltip: 'Edit struk',
+                      onPressed: () => _editReceipt(r),
+                    ),
                   ),
                 )),
         ],

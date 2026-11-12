@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../models/receipt_model.dart';
+import 'receipt_edit_screen.dart';
 
 class ReceiptGalleryScreen extends StatefulWidget {
   const ReceiptGalleryScreen({super.key});
@@ -29,6 +30,15 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
     });
   }
 
+  void _showMessage(String text, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: isError ? Colors.red : null,
+      ),
+    );
+  }
+
   // Foto yang file-nya hilang tidak bikin app error
   Widget _buildImage(String path, {BoxFit fit = BoxFit.cover}) {
     return Image.file(
@@ -38,6 +48,20 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
         child: Icon(Icons.broken_image, color: Colors.grey),
       ),
     );
+  }
+
+  // FR-12: buka layar Edit (ganti foto + ubah catatan)
+  Future<void> _openEdit(Receipt r) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ReceiptEditScreen(receipt: r)),
+    );
+    if (!mounted) return;
+    if (saved == true) {
+      await _loadReceipts(); // baca ulang supaya foto/catatan baru tampil
+      if (!mounted) return;
+      _showMessage('Struk berhasil diperbarui');
+    }
   }
 
   Future<void> _confirmDelete(Receipt r) async {
@@ -72,9 +96,7 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
     if (!mounted) return;
     await _loadReceipts();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Struk dihapus')),
-    );
+    _showMessage('Struk dihapus');
   }
 
   void _openPreview(Receipt r) {
@@ -100,17 +122,27 @@ class _ReceiptGalleryScreenState extends State<ReceiptGalleryScreen> {
                 style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context); // tutup pratinjau
-                    _confirmDelete(r);
-                  },
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  label: const Text('Hapus',
-                      style: TextStyle(color: Colors.red)),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context); // tutup pratinjau
+                      _openEdit(r);
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context); // tutup pratinjau
+                      _confirmDelete(r);
+                    },
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    label: const Text('Hapus',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                ],
               ),
             ],
           ),
