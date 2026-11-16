@@ -10,7 +10,7 @@ class BerandaScreen extends StatefulWidget {
 }
 
 class _BerandaScreenState extends State<BerandaScreen> {
-  var _recentExpenses = []; // Menggunakan var agar VS Code tidak error membaca tanda < >
+  var _recentExpenses = []; 
   double _totalBulanIni = 0.0;
   bool _isLoading = true;
 
@@ -33,7 +33,6 @@ class _BerandaScreenState extends State<BerandaScreen> {
       }
     }
 
-    // Menggunakan spread operator [...data] untuk menghindari error "dot-shorthand"
     var sortedData = [...data];
     sortedData.sort((a, b) => DateTime.parse(b['expense_date']).compareTo(DateTime.parse(a['expense_date'])));
     final recent = sortedData.take(3).toList();
@@ -73,7 +72,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
-        title: const Column( // Diperbarui dengan const
+        title: const Column( 
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('SpendWise', style: TextStyle(fontSize: 14, color: Colors.grey)),
@@ -86,36 +85,40 @@ class _BerandaScreenState extends State<BerandaScreen> {
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDashboardCard(),
-                const SizedBox(height: 16),
-                _buildWarningCard(),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Transaksi Terbaru', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('Lihat semua >', style: TextStyle(color: Color(0xFF2563EB))),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildRecentTransactions(),
-              ],
+        : RefreshIndicator(
+            onRefresh: _loadBerandaData,
+            color: const Color(0xFF2563EB),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(), // Wajib agar selalu bisa ditarik
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDashboardCard(),
+                  const SizedBox(height: 16),
+                  _buildWarningCard(),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Transaksi Terbaru', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      TextButton(
+                        onPressed: () {},
+                        child: const Text('Lihat semua >', style: TextStyle(color: Color(0xFF2563EB))),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildRecentTransactions(),
+                ],
+              ),
             ),
           ),
     );
   }
 
   Widget _buildDashboardCard() {
-    // TODO (Nasywa): Ambil target budget dari database Anggaran
-    const double targetBudget = 2000000; // Diperbarui dengan const
+    const double targetBudget = 2000000; 
     double remainingBudget = targetBudget - _totalBulanIni;
     double percentage = _totalBulanIni / targetBudget;
 
@@ -191,7 +194,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFFCD34D)),
       ),
-      child: const Row( // Diperbarui dengan const
+      child: const Row( 
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706)),
@@ -235,7 +238,7 @@ class _BerandaScreenState extends State<BerandaScreen> {
             leading: Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: catColor.withValues(alpha: 0.1), // Diperbarui ke withValues
+                color: catColor.withValues(alpha: 0.1), 
                 borderRadius: BorderRadius.circular(10)
               ),
               child: Icon(catIcon, color: catColor, size: 20),

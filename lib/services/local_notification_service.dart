@@ -8,27 +8,42 @@ class LocalNotificationService {
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
-    // 1. Inisialisasi zona waktu (WIB / Asia/Jakarta)
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Jakarta'));
 
-    // 2. Pengaturan ikon notifikasi untuk Android
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
 
-    // Ubah parameter ini menjadi settings:
     await _notificationsPlugin.initialize(
       settings: initializationSettings,
     );
 
-    // 3. Meminta izin notifikasi
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+  }
+
+  // FUNGSI INSTAN UNTUK TESTING (Cadangan)
+  static Future<void> showInstantNotification() async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'instant_channel',
+      'Notifikasi Instan',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidDetails);
+    
+    await _notificationsPlugin.show(
+      id: 99, 
+      title: 'Tes Notifikasi! 🚀', 
+      body: 'Kalau ini muncul, berarti sistem notifikasinya aman.', 
+      notificationDetails: platformChannelSpecifics,
+    );
   }
 
   static Future<void> scheduleDailyNotification() async {
@@ -53,16 +68,18 @@ class LocalNotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
     );
     
-    debugPrint("✅ Alarm pengingat harian berhasil disetel!");
+    debugPrint("✅ Alarm pengingat harian berhasil disetel untuk jam 20:00!");
   }
 
+  // PENGATURAN ASLI: Jam 8 Malam (20:00) setiap hari
   static tz.TZDateTime _nextInstanceOf8PM() {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     
-    // Disetel ke jam 21:06 WIB untuk testing
+    // Setel jadwal ke jam 20:00 hari ini
     tz.TZDateTime scheduledDate =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, 21, 59); 
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, 20, 0); 
     
+    // Jika jam 20:00 hari ini sudah terlewat, lemparkan jadwal ke besoknya
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }

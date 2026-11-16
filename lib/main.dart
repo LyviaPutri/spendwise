@@ -7,9 +7,9 @@ void main() async {
   // Wajib dipanggil sebelum runApp()
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 1. Alarm harian dinonaktifkan sementara agar build aman untuk tim
-  // await LocalNotificationService.initialize();
-  // await LocalNotificationService.scheduleDailyNotification();
+  // 1. Alarm harian diaktifkan 
+   await LocalNotificationService.initialize();
+   await LocalNotificationService.scheduleDailyNotification();
 
   // 2. Aktifkan pendengar notifikasi GoPay 
   NotificationHandler.startListening();

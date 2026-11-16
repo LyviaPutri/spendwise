@@ -31,37 +31,49 @@ class NotificationHandler {
             }
           }
 
-          // Pastikan mengganti ke 'com.gojek.app' saat nanti dirilis
           if (pack == 'com.gojek.app' || pack == 'com.gojek.gopay') {
             
+            // 1. PERBAIKAN REGEX NOMINAL: Menangkap angka berapa pun (besar/kecil) di belakang Rp
             RegExp nominalRegex = RegExp(r'Rp\s?([\d\.]+)');
             Match? nominalMatch = nominalRegex.firstMatch(text);
 
             if (nominalMatch != null) {
-              // Jika valid, perbarui rekam jejak notifikasi terakhir
               _lastNotificationText = text;
               _lastNotificationTime = now;
 
+              // Membersihkan titik pemisah ribuan agar bisa di-parse menjadi double
               String nominalString = nominalMatch.group(1)!.replaceAll('.', '');
               double amount = double.tryParse(nominalString) ?? 0.0;
 
+              // 2. PERBAIKAN REGEX MERCHANT/PENERIMA
               String merchantName = "GoPay Merchant";
-              RegExp merchantRegex = RegExp(r'ke\s(.*?)\ssebesar');
-              Match? merchantMatch = merchantRegex.firstMatch(text);
-              if (merchantMatch != null) {
-                merchantName = merchantMatch.group(1)!.trim();
+              
+              // Skenario A: Untuk transaksi belanja / pembayaran (biasanya pakai "ke X sebesar")
+              RegExp merchantRegexPay = RegExp(r'ke\s(.*?)\ssebesar');
+              Match? matchPay = merchantRegexPay.firstMatch(text);
+              
+              // Skenario B: Untuk transfer antar teman (P2P) ("transfer RpX ke [Nama].")
+              RegExp merchantRegexTransfer = RegExp(r'ke\s([^.]+)');
+              Match? matchTransfer = merchantRegexTransfer.firstMatch(text);
+
+              // Cek skenario A dulu, kalau gagal, pakai skenario B
+              if (matchPay != null) {
+                merchantName = matchPay.group(1)!.trim();
+              } else if (matchTransfer != null) {
+                merchantName = matchTransfer.group(1)!.trim();
+                // Opsional: Hapus kata "Lyvia Putri Lestari" agar murni nama saja kalau ada sisa teks aneh
               }
 
-              debugPrint("Nominal Extracted: $amount | Merchant: $merchantName");
+              debugPrint("Nominal Extracted: $amount | Merchant/Penerima: $merchantName");
 
               // Menyimpan data
               final newExpense = ExpenseModel(
                 categoryId: 5, // Lainnya
                 amount: amount,
                 expenseDate: DateTime.now().toIso8601String(),
-                notes: 'Otomatis dari GoPay', // Digeser menjadi catatan
-                merchantName: merchantName, // Nama merchant (Kantin Kampus) jadi judul utama
-                paymentMethod: 'Non-Tunai', // Disamakan dengan standar manual
+                notes: 'Otomatis dari GoPay', 
+                merchantName: merchantName, 
+                paymentMethod: 'Non-Tunai', 
                 source: 'gopay',
               );
 
@@ -73,12 +85,14 @@ class NotificationHandler {
                 if (isSynced) {
                   debugPrint("✅ Berhasil disinkronisasi ke XAMPP Server");
                 } else {
-                  debugPrint("❌ Gagal sinkronisasi ke XAMPP Server");
+                  debugPrint("❌ Gagal sinkronisasi ke XAMPP Server (Cek IP/Koneksi)");
                 }
               } catch (e) {
                 debugPrint("❌ Gagal memproses data notifikasi: $e");
               }
               
+            } else {
+               debugPrint("❌ Nominal tidak ditemukan dalam notifikasi Gojek ini.");
             }
           }
         }
